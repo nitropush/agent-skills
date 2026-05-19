@@ -1,0 +1,50 @@
+{
+  "$schema": "./manifest.schema.json",
+  "outputs": [
+    {
+      "tool": "claude",
+      "mode": "per-skill",
+      "pathTemplate": ".claude/skills/{slug}/SKILL.md",
+      "template": "claude.tmpl"
+    },
+    {
+      "tool": "cursor",
+      "mode": "per-skill",
+      "pathTemplate": ".cursor/rules/{slug}.mdc",
+      "template": "cursor.mdc.tmpl"
+    },
+    {
+      "tool": "windsurf",
+      "mode": "per-skill",
+      "pathTemplate": ".windsurf/rules/{slug}.md",
+      "template": "windsurf.tmpl"
+    },
+    {
+      "tool": "copilot",
+      "mode": "combined",
+      "path": ".github/copilot-instructions.md",
+      "headerTemplate": "copilot-header.tmpl",
+      "skillTemplate": "copilot-skill.tmpl"
+    },
+    {
+      "tool": "cline",
+      "mode": "combined",
+      "path": ".clinerules",
+      "headerTemplate": "cline-header.tmpl",
+      "skillTemplate": "cline-skill.tmpl"
+    },
+    {
+      "tool": "agents",
+      "mode": "combined",
+      "path": "AGENTS.md",
+      "headerTemplate": "agents-header.tmpl",
+      "skillTemplate": "agents-skill.tmpl"
+    },
+    {
+      "tool": "readme",
+      "mode": "verbatim",
+      "sourcePath": "README.md",
+      "targetPath": "docs/agent-skills/README.md"
+    }
+  ]
+}

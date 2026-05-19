@@ -1,0 +1,44 @@
+{
+  "name": "@nitropush/agent-skills",
+  "version": "1.0.0",
+  "description": "Shared AI-agent rule files for NitroPush repos — render into Claude Code, Cursor, Windsurf, GitHub Copilot, Cline, and AGENTS.md formats",
+  "type": "module",
+  "main": "scripts/sync.mjs",
+  "bin": {
+    "agent-skills-sync": "scripts/sync.mjs"
+  },
+  "files": [
+    "skills/",
+    "scripts/",
+    "templates/",
+    "manifest.json",
+    "registry.json",
+    "README.md"
+  ],
+  "scripts": {
+    "sync": "node scripts/sync.mjs --target ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitropush/agent-skills.git"
+  },
+  "homepage": "https://github.com/nitropush/agent-skills#readme",
+  "bugs": {
+    "url": "https://github.com/nitropush/agent-skills/issues"
+  },
+  "keywords": [
+    "claude",
+    "cursor",
+    "windsurf",
+    "copilot",
+    "cline",
+    "ai-agents",
+    "agent-rules",
+    "code-rules"
+  ],
+  "author": "NitroPush Team",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

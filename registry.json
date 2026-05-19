@@ -1,0 +1,4 @@
+{
+  "_comment": "Consumers receive repository_dispatch from nitropush/agent-skills' publish.yml. The nitropush-monorepo is NOT listed here — it is the source of truth and regenerates its own outputs via agent-skills-publish.yml.",
+  "consumers": []
+}
