@@ -1,15 +1,11 @@
 name: publish
 
+# Run manually only — do NOT add push triggers here.
+# This workflow lives in the nitropush/agent-skills MIRROR repo.
+# Auto-triggering on push would create a sync loop: monorepo mirrors here,
+# this fires, dispatches back to consumers, which may include the monorepo.
+
 on:
-  push:
-    branches: [main]
-    paths:
-      - "skills/**"
-      - "templates/**"
-      - "scripts/**"
-      - "manifest.json"
-      - "registry.json"
-      - "README.md"
   workflow_dispatch:
 
 permissions:
