@@ -1,142 +1,78 @@
-# agent-skills
+# @nitropush/agent-skills
 
-Shared AI-agent rule files for NitroPush repos. Skills here render into per-tool formats — Claude Code, Cursor, Windsurf, GitHub Copilot, Cline, and `AGENTS.md` — so every tool sees the same guidance.
-
-> 📍 **Where to edit.** This directory inside `nitropush-monorepo` is the **source of truth**. The repo at [`nitropush/agent-skills`](https://github.com/nitropush/agent-skills) is a public-visibility mirror that gets pushed automatically — do not edit it directly.
+AI-agent rule files for NitroPush SDK integration. Installs context-aware guidance into Claude Code, Cursor, Windsurf, GitHub Copilot, Cline, and `AGENTS.md` so your AI assistant knows the right patterns when working with NitroPush OTA updates.
 
 ---
 
-## How edits flow
+## Install
 
-```
-You edit:  nitropush-monorepo:tools/agent-skills-source/**
-                       │
-                       ▼  (PR + merge to main)
-       agent-skills-publish.yml (in nitropush-monorepo)
-                       │
-       ┌───────────────┴──────────────┐
-       ▼                              ▼
- regen this repo's            mirror full source dir
- .claude/, .cursor/,           to nitropush/agent-skills
- .windsurf/, .clinerules,                │
- .github/copilot-                        ▼  publish.yml fans out
- instructions.md, AGENTS.md,    repository_dispatch → other consumers
- docs/agent-skills/README.md
+### Option 1 — npm (recommended)
+
+```bash
+npm install --save-dev @nitropush/agent-skills
+npx agent-skills-sync --target .
 ```
 
-So one merge in nitropush-monorepo triggers everything: this repo's tool files get regenerated, the public mirror updates, and other consumers (in `registry.json`) receive sync PRs.
+Then commit the generated files:
 
----
-
-## Install in another repo (consumer)
-
-For repos other than nitropush-monorepo. They consume from the public mirror at `nitropush/agent-skills`.
-
-### Option 1 — auto-sync (recommended)
-
-Each time skills change in this monorepo, the mirror updates and a GitHub Action opens a PR in your repo with regenerated files.
-
-**1. Add the consumer to `registry.json`** in this monorepo:
-
-```json
-{
-  "consumers": [
-    { "owner": "your-org", "repo": "your-repo", "branch": "main" }
-  ]
-}
+```bash
+git add .claude/ .cursor/ .windsurf/ .github/copilot-instructions.md .clinerules AGENTS.md
+git commit -m "chore: install nitropush agent skills"
 ```
 
-**2. In the consumer repo, add the sync workflow** at `.github/workflows/sync-skills.yml`:
-
-```yaml
-name: sync-skills
-
-on:
-  repository_dispatch:
-    types: [skills-update]
-  workflow_dispatch:
-    inputs:
-      source_ref:
-        description: "Ref of agent-skills to sync from"
-        required: false
-        default: main
-
-permissions:
-  contents: write
-  pull-requests: write
-
-env:
-  SKILLS_REPO: nitropush/agent-skills
-  SKILLS_REF: ${{ github.event.client_payload.source_sha || inputs.source_ref || 'main' }}
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ env.SKILLS_REPO }}
-          ref: ${{ env.SKILLS_REF }}
-          path: .agent-skills-source
-          token: ${{ secrets.SKILLS_REPO_TOKEN }}
-      - uses: actions/setup-node@v4
-        with: { node-version: "20" }
-      - run: node .agent-skills-source/scripts/sync.mjs --target .
-      - run: rm -rf .agent-skills-source
-        if: always()
-      - uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.SKILLS_REPO_TOKEN }}
-          commit-message: "🔧 chore: sync agent skills"
-          title: "🔧 chore: sync agent skills"
-          body: "Automated sync from `${{ env.SKILLS_REPO }}`@`${{ env.SKILLS_REF }}`."
-          branch: bot/sync-skills
-          delete-branch: true
-          labels: |
-            chore
-            agent-skills
-```
-
-**3. Mint a fine-grained PAT named `SKILLS_REPO_TOKEN`** with:
-
-- Repository access: `nitropush/agent-skills` and the consumer repo
-- Permissions: Contents (read/write), Pull requests (read/write), Metadata (read)
-
-Add it as an Actions secret in the consumer repo.
-
-**4. Trigger one manual run** of `sync-skills` to seed the consumer repo with the initial files.
-
-### Option 2 — one-shot (no auto-sync)
+### Option 2 — git clone
 
 ```bash
 git clone git@github.com:nitropush/agent-skills.git
-cd agent-skills
-node scripts/sync.mjs --target /path/to/your/repo
-cd /path/to/your/repo
-git add .claude/ .cursor/ .windsurf/ .github/copilot-instructions.md .clinerules AGENTS.md docs/agent-skills/
-git commit -m "✨ feat: install agent-skills"
+node agent-skills/scripts/sync.mjs --target /path/to/your/repo
+rm -rf agent-skills
 ```
 
-You won't get future updates automatically — re-run when you want to refresh.
+Then commit the generated files as above.
 
 ---
 
 ## What gets written
 
-| Tool | Path | Mode |
-|------|------|------|
-| Claude Code | `.claude/skills/<name>/SKILL.md` | per-skill |
-| Cursor | `.cursor/rules/<name>.mdc` | per-skill (with globs) |
-| Windsurf | `.windsurf/rules/<name>.md` | per-skill |
-| GitHub Copilot | `.github/copilot-instructions.md` | combined |
-| Cline | `.clinerules` | combined |
-| Universal | `AGENTS.md` | combined |
-| Source README | `docs/agent-skills/README.md` | verbatim |
+| Tool | Path |
+|------|------|
+| Claude Code | `.claude/skills/<name>/SKILL.md` |
+| Cursor | `.cursor/rules/<name>.mdc` |
+| Windsurf | `.windsurf/rules/<name>.md` |
+| GitHub Copilot | `.github/copilot-instructions.md` |
+| Cline | `.clinerules` |
+| Universal | `AGENTS.md` |
 
-All generated files start with `<!-- AUTO-GENERATED by agent-skills sync. Do not edit. -->`. Hand-edits get overwritten on the next sync.
+All generated files begin with `<!-- AUTO-GENERATED by agent-skills sync. Do not edit. -->`. Re-run the sync command to pick up updates.
+
+---
+
+## Available skills
+
+| Skill | What it covers |
+|-------|---------------|
+| `nitropush-cli` | `nitropush` CLI — `release upload`, signing keys, CI patterns |
+| `nitropush-rn-js` | React Native JS SDK — `configure()`, `checkForUpdate()`, codepush + expo flows |
+| `nitropush-rn-native` | Native iOS/Android setup — `NitroPushSdk.install()`, bundle signing, `Info.plist`/`AndroidManifest.xml` keys |
+| `nitropush-integration` | End-to-end integration patterns — project/environment setup, release lifecycle |
+
+---
+
+## Keep skills up to date
+
+```bash
+# npm
+npx agent-skills-sync --target .
+
+# git clone
+git clone git@github.com:nitropush/agent-skills.git
+node agent-skills/scripts/sync.mjs --target .
+rm -rf agent-skills
+```
+
+---
 
 ## Requirements
 
-- **Consumer repo:** GitHub Actions enabled. Node 20 (provided by `actions/setup-node`).
-- **Local one-shot install:** Node 18+.
+- Node 18+
+- GitHub Actions enabled (for auto-sync workflow, if used)
