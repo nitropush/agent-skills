@@ -1,6 +1,6 @@
 {
   "name": "@nitropush/agent-skills",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "Shared AI-agent rule files for NitroPush repos — render into Claude Code, Cursor, Windsurf, GitHub Copilot, Cline, and AGENTS.md formats",
   "type": "module",
   "main": "scripts/sync.mjs",
