@@ -11,13 +11,16 @@ Any AI coding tool that supports `AGENTS.md` (or that you point at this file man
 
 Tool-specific copies of these same skills live at:
 
-| Tool | Path |
-|------|------|
-| Claude Code | `.claude/skills/<name>/SKILL.md` |
-| Cursor | `.cursor/rules/<name>.mdc` |
-| Windsurf | `.windsurf/rules/<name>.md` |
-| GitHub Copilot | `.github/copilot-instructions.md` |
-| Cline | `.clinerules` |
+| Tool | Path | Notes |
+|------|------|-------|
+| Claude Code | `.claude/skills/<name>/SKILL.md` | auto-loaded per task |
+| Cursor | `.cursor/rules/<name>.mdc` | auto-loaded per task |
+| Windsurf | `.windsurf/rules/<name>.md` | auto-loaded per task |
+| GitHub Copilot | `.github/copilot-instructions.md` | always-on |
+| Cline | `.clinerules` | always-on |
+| OpenAI Codex CLI | `AGENTS.md` | this file |
+| Aider | `.aider/conventions.md` | `aider --read .aider/conventions.md` |
+| Any other tool | `AI.md` | generic fallback |
 
 All of those are auto-generated from the same source and should not be hand-edited.
 

@@ -24,21 +24,40 @@ skill that owns the detail (`nitropush-cli`, `nitropush-rn-native`,
 | ✋ **NUDGE** | The user has to do this themselves (browser, secrets, device build). Surface clear instructions and pause; you cannot do it for them. |
 | 🤖 **AUTO** | You do this — edit files / run codegen — then show the diff. |
 
-## Step 0 — 🧑 ASK: Expo or bare React Native? (MANDATORY GATE)
+## Step 0 — Detect project context (NO QUESTIONS if obvious)
 
-**Before anything else, every time, ask:**
+### 0a — Wrong directory guard (check FIRST, before anything else)
 
-> "Is this an **Expo** app (managed/prebuild, has `app.json`/`app.config.*` and an
-> Expo config-plugin list) or a **bare React Native** app (you hand-edit
-> `ios/AppDelegate.swift` and `android/MainApplication.kt`)?"
+Read the directory you are operating in. If you see **any** of these:
+- a `nitro.json` file
+- a `.podspec` file
+- no `App.tsx`, `App.js`, or `src/App.*` entry point
 
-Do not infer silently and proceed — confirm with the user even if you see an
-`app.json`, because bare RN apps have one too. Every later step branches on this
-answer. If they don't know: presence of `"expo"` in `package.json` deps + an
-`expo` key in `app.json` ⇒ Expo; an `ios/` + `android/` folder you're expected to
-edit by hand ⇒ bare RN. Still confirm the inference out loud.
+…you are inside the **NitroPush library package**, not a user app. **Stop immediately** and tell the user:
 
-Record the answer. Refer to it as **PROJECT_KIND** below.
+> "This looks like the NitroPush library directory, not your app. Please open a terminal in your Expo or React Native app's root folder and ask me again from there."
+
+Do not attempt any integration steps until they confirm you are in the correct directory.
+
+### 0b — Auto-detect Expo vs bare React Native
+
+Read `package.json` and `app.json` (if present) before asking anything.
+
+**Infer silently and proceed** using these rules:
+
+| Signal | Conclusion |
+|--------|------------|
+| `"expo"` in `package.json` dependencies **and** `"expo"` key in `app.json` | **Expo** |
+| `ios/AppDelegate.swift` (or `.m`) exists but no `expo` dep | **Bare RN** |
+| `app.json` present but no `expo` key, no `ios/AppDelegate.*` | **Ambiguous** |
+
+- If **Expo**: state your conclusion out loud ("I can see this is an Expo project — I'll use the config plugin path") and continue to Step 1. Do not ask.
+- If **bare RN**: state your conclusion and continue. Do not ask.
+- If **ambiguous only**: 🧑 **ASK** once. Never ask when the answer is obvious.
+
+Record the result as **PROJECT_KIND**.
+
+## Step 1 — 🧑 ASK: Dashboard project already set up? (MANDATORY GATE)
 
 ## Step 1 — 🧑 ASK: Dashboard project already set up? (MANDATORY GATE)
 
@@ -199,8 +218,8 @@ causes boot-loop rollbacks); never add JS analytics (telemetry is native-only).
 
 ## Things to NOT do
 
-- **Don't skip Step 0.** Never assume Expo vs bare RN from the presence of
-  `app.json` alone — both have one. Ask, every time.
+- **Don't skip Step 0a.** Always check you're in an app directory, not the NitroPush library — look for `nitro.json` / `.podspec` as the red flags.
+- **Don't ask Expo vs bare RN when the answer is obvious** — infer it from `package.json` deps and `app.json`, state the inference, and continue. Only ask when genuinely ambiguous.
 - **Don't skip Step 1.** Never assume the user needs to create a project — they
   may already have one. Ask before running any `nitropush app create` or
   `nitropush env create` command.

@@ -41,6 +41,20 @@
       "skillTemplate": "agents-skill.tmpl"
     },
     {
+      "tool": "aider",
+      "mode": "combined",
+      "path": ".aider/conventions.md",
+      "headerTemplate": "aider-header.tmpl",
+      "skillTemplate": "aider-skill.tmpl"
+    },
+    {
+      "tool": "generic",
+      "mode": "combined",
+      "path": "AI.md",
+      "headerTemplate": "generic-header.tmpl",
+      "skillTemplate": "generic-skill.tmpl"
+    },
+    {
       "tool": "readme",
       "mode": "verbatim",
       "sourcePath": "README.md",

@@ -11,13 +11,16 @@ Any AI coding tool that supports `AGENTS.md` (or that you point at this file man
 
 Tool-specific copies of these same skills live at:
 
-| Tool | Path |
-|------|------|
-| Claude Code | `.claude/skills/<name>/SKILL.md` |
-| Cursor | `.cursor/rules/<name>.mdc` |
-| Windsurf | `.windsurf/rules/<name>.md` |
-| GitHub Copilot | `.github/copilot-instructions.md` |
-| Cline | `.clinerules` |
+| Tool | Path | Notes |
+|------|------|-------|
+| Claude Code | `.claude/skills/<name>/SKILL.md` | auto-loaded per task |
+| Cursor | `.cursor/rules/<name>.mdc` | auto-loaded per task |
+| Windsurf | `.windsurf/rules/<name>.md` | auto-loaded per task |
+| GitHub Copilot | `.github/copilot-instructions.md` | always-on |
+| Cline | `.clinerules` | always-on |
+| OpenAI Codex CLI | `AGENTS.md` | this file |
+| Aider | `.aider/conventions.md` | `aider --read .aider/conventions.md` |
+| Any other tool | `AI.md` | generic fallback |
 
 All of those are auto-generated from the same source and should not be hand-edited.
 
@@ -211,7 +214,7 @@ Menu-driven flow for users who don't want to remember flags. Not for scripting.
 This is the **interactive setup flow** an agent runs when a user says they want to
 integrate NitroPush. It is a sequencer, not a reference — each step links to the
 skill that owns the detail (`nitropush-cli`, `nitropush-rn-native`,
-`nitropush-rn-js`). Follow the steps in order. Do not skip the gate.
+`nitropush-rn-js`). Follow the steps in order. Do not skip any gate.
 
 ## Marker legend
 
@@ -221,26 +224,62 @@ skill that owns the detail (`nitropush-cli`, `nitropush-rn-native`,
 | ✋ **NUDGE** | The user has to do this themselves (browser, secrets, device build). Surface clear instructions and pause; you cannot do it for them. |
 | 🤖 **AUTO** | You do this — edit files / run codegen — then show the diff. |
 
-## Step 0 — 🧑 ASK: Expo or bare React Native? (MANDATORY GATE)
+## Step 0 — Detect project context (NO QUESTIONS if obvious)
 
-**Before anything else, every time, ask:**
+### 0a — Wrong directory guard (check FIRST, before anything else)
 
-> "Is this an **Expo** app (managed/prebuild, has `app.json`/`app.config.*` and an
-> Expo config-plugin list) or a **bare React Native** app (you hand-edit
-> `ios/AppDelegate.swift` and `android/MainApplication.kt`)?"
+Read the directory you are operating in. If you see **any** of these:
+- a `nitro.json` file
+- a `.podspec` file
+- no `App.tsx`, `App.js`, or `src/App.*` entry point
 
-Do not infer silently and proceed — confirm with the user even if you see an
-`app.json`, because bare RN apps have one too. Every later step branches on this
-answer. If they don't know: presence of `"expo"` in `package.json` deps + an
-`expo` key in `app.json` ⇒ Expo; an `ios/` + `android/` folder you're expected to
-edit by hand ⇒ bare RN. Still confirm the inference out loud.
+…you are inside the **NitroPush library package**, not a user app. **Stop immediately** and tell the user:
 
-Record the answer. Refer to it as **PROJECT_KIND** below.
+> "This looks like the NitroPush library directory, not your app. Please open a terminal in your Expo or React Native app's root folder and ask me again from there."
 
-## Step 1 — Account, app, environment (uses `nitropush-cli` skill)
+Do not attempt any integration steps until they confirm you are in the correct directory.
 
-The device needs three values to talk to NitroPush: `serverUrl`,
-`deploymentKey` (the environment key), `storageBaseUrl`. To produce them the
+### 0b — Auto-detect Expo vs bare React Native
+
+Read `package.json` and `app.json` (if present) before asking anything.
+
+**Infer silently and proceed** using these rules:
+
+| Signal | Conclusion |
+|--------|------------|
+| `"expo"` in `package.json` dependencies **and** `"expo"` key in `app.json` | **Expo** |
+| `ios/AppDelegate.swift` (or `.m`) exists but no `expo` dep | **Bare RN** |
+| `app.json` present but no `expo` key, no `ios/AppDelegate.*` | **Ambiguous** |
+
+- If **Expo**: state your conclusion out loud ("I can see this is an Expo project — I'll use the config plugin path") and continue to Step 1. Do not ask.
+- If **bare RN**: state your conclusion and continue. Do not ask.
+- If **ambiguous only**: 🧑 **ASK** once. Never ask when the answer is obvious.
+
+Record the result as **PROJECT_KIND**.
+
+## Step 1 — 🧑 ASK: Dashboard project already set up? (MANDATORY GATE)
+
+## Step 1 — 🧑 ASK: Dashboard project already set up? (MANDATORY GATE)
+
+**Before creating anything, ask:**
+
+> "Do you already have a NitroPush project set up in the dashboard
+> (app created + environment created + deployment key copied)?"
+
+### If YES — project already exists
+
+Skip app/environment creation. Instead:
+
+1. ✋ **NUDGE:** ask the user to paste their **App ID** and **deployment key** from
+   the dashboard (or from `nitropush app list` output). Store both for later steps.
+   Do NOT guess or invent these values.
+2. Run `nitropush whoami --json` yourself to confirm auth and capture `orgId`.
+3. Jump directly to **Step 2 — Signing key**.
+
+### If NO — need to create a project
+
+The device needs three values to talk to NitroPush: `deploymentKey`
+(the environment key), `serverUrl`, `storageBaseUrl`. To produce them the
 user must have an org, an app, and an environment. Drive this with the CLI —
 see the **nitropush-cli** skill for exact flags.
 
@@ -250,20 +289,64 @@ see the **nitropush-cli** skill for exact flags.
    want non-interactive.) Then run `nitropush whoami --json` yourself to confirm
    auth and capture `orgId`.
 2. 🤖 **AUTO: create the app.**
-   `nitropush app create --org <orgId> --name "<AppName>" --bundle-id <id>` —
-   🧑 **ASK** for the app display name and the iOS/Android bundle identifier if
-   you can't read them confidently from `app.json` / native projects.
+   `nitropush app create --org <orgId> --name "<AppName>"` —
+   🧑 **ASK** for the app display name if you can't read it confidently from
+   `app.json` / native projects. Capture the returned **App ID**.
 3. 🤖 **AUTO: create environment(s).** `nitropush env create --app <appId> --name prod`
    (offer `test`/`stage` too — 🧑 **ASK** which environments they want; default
    to just `prod` if unsure).
-4. ✋ **NUDGE: capture the deployment key.** The `deploymentKey` is the
-   environment's key. There is no stable `--json` for it (see nitropush-cli
-   "Output mode"); have the user copy it from the dashboard or CLI output. Do
-   **not** hardcode a guessed key.
+4. ✋ **NUDGE: capture the deployment key.** The `deploymentKey` is printed in the
+   `env create` output. Have the user copy it now — it is not recoverable from the
+   CLI later. Do **not** hardcode a guessed key.
 
 Resource order is strict: **Org → App → Environment**. Create top-down.
 
-## Step 2 — Native wiring (uses `nitropush-rn-native` skill)
+## Step 2 — 🧑 ASK: Bundle signing opt-in (MANDATORY GATE)
+
+Bundle signing lets the SDK verify that every OTA bundle was produced by you and
+has not been tampered with. It is opt-in and **strongly recommended for production**.
+
+**Ask the user:**
+
+> "Do you want to enable **bundle signing**? (Recommended for production)
+>
+> This generates an ECDSA P-256 keypair. The public key is registered with
+> NitroPush; the private key stays with you and is used to sign every upload.
+> The SDK verifies the signature before installing any update — a tampered
+> bundle is rejected before it touches the device."
+
+### If YES — enable signing
+
+1. 🤖 **AUTO:** run the generate command (requires the App ID from Step 1):
+   ```bash
+   nitropush app signing-key generate --app <appId> --out ./nitropush-signing.pem
+   ```
+   This generates the keypair, registers the public key with NitroPush, and
+   writes the private key PEM to `./nitropush-signing.pem`.
+
+2. ✋ **NUDGE: secure the private key.** Tell the user to do ALL of the following:
+   - Add `nitropush-signing.pem` to `.gitignore` immediately — never commit it.
+   - For CI: store the PEM file's content as a repository secret (e.g.
+     `NITROPUSH_BUNDLE_SIGNING_KEY`) and write it to a temp file at upload time:
+     ```bash
+     KEY_FILE="$(mktemp)"
+     printf '%s' "$NITROPUSH_BUNDLE_SIGNING_KEY" > "$KEY_FILE"
+     nitropush release upload ... --signing-key "$KEY_FILE"
+     rm -f "$KEY_FILE"
+     ```
+   - For local dev: keep the PEM file in the project root (gitignored) and pass
+     `--signing-key ./nitropush-signing.pem` on every `release upload`.
+
+3. Record that signing is enabled. Every `release upload` command you suggest
+   from this point MUST include `--signing-key <path>`.
+
+### If NO — skip signing
+
+Signing is off. OTA bundles are still encrypted in transit (TLS) but not
+signature-verified on device. You may mention this tradeoff once, then move on.
+Do not add `--signing-key` to any future commands.
+
+## Step 3 — Native wiring (uses `nitropush-rn-native` skill)
 
 Branch on **PROJECT_KIND**. Full detail (file contents, the Xcode 26 umbrella
 patch, telemetry-is-native) lives in the **nitropush-rn-native** skill — read it
@@ -296,43 +379,59 @@ before editing native files.
 Always end this step by reminding them: **debug builds must still hit Metro** —
 the `#if DEBUG` / `BuildConfig.DEBUG` guards are not optional.
 
-## Step 3 — JS wiring (uses `nitropush-rn-js` skill)
+## Step 4 — JS wiring (uses `nitropush-rn-js` skill)
 
 🤖 **AUTO** for both PROJECT_KINDs (the JS API is identical) — see
 **nitropush-rn-js** for the full surface:
 
-1. Add `configure({ serverUrl, deploymentKey, storageBaseUrl })` at **module
-   scope** (top of the entry file, never inside a component).
+1. Add `configure()` at **module scope** (top of the entry file, never inside a
+   component). `configure()` takes no arguments — `serverUrl` and `storageBaseUrl`
+   are hardcoded in native; the deployment key is read from the native layer.
 2. Add `notifyAppReady()` in a `useEffect(() => {…}, [])` after first render.
 3. Add a `sync(...)` call where updates should be checked (app foreground or a
    button), with the status callback.
-4. Wire the three config values:
-   - Expo: `EXPO_PUBLIC_NITROPUSH_*` env vars — ✋ **NUDGE** the user to put the
-     real `deploymentKey` from Step 1 into `.env` (don't commit it).
-   - Bare RN: pass the values directly to `configure()` — ✋ **NUDGE** the user
-     to supply the real key; leave a clearly-marked placeholder, never a guess.
+4. Wire the deployment key into the native layer:
+   - Expo: the config plugin writes it for you — ✋ **NUDGE** the user to pass
+     `"deploymentKey": "<key>"` in the plugin config in `app.json` and re-run
+     `expo prebuild`. Do not put the key in JS env vars.
+   - Bare RN iOS: set `NITROPUSH_DEPLOYMENT_KEY` in `Info.plist`.
+   - Bare RN Android: set `NITROPUSH_DEPLOYMENT_KEY` as `<meta-data>` in
+     `AndroidManifest.xml`.
+   - ✋ **NUDGE** the user to supply the real key from Step 1; leave a clearly
+     marked placeholder, never a guess.
 
 Hard rules from the JS skill that you must enforce while editing:
 `configure()` is module-scope only; `notifyAppReady()` is mandatory (skipping it
 causes boot-loop rollbacks); never add JS analytics (telemetry is native-only).
 
-## Step 4 — Verify & hand off
+## Step 5 — Verify & hand off
 
 1. 🧑 **ASK** the user to do a release build (not Metro) on a device/simulator —
    you can't run it for them.
-2. Tell them how to ship the first OTA: `nitropush release upload …` (see
-   nitropush-cli). 🧑 **ASK** for the bundle path / app version if not obvious.
+2. Tell them how to ship the first OTA:
+   - Without signing: `nitropush release upload --project <id> --environment prod --app-version 1.0.0 --label 1.0.1 --bundle-path ./dist`
+   - With signing: `nitropush release upload --project <id> --environment prod --app-version 1.0.0 --label 1.0.1 --bundle-path ./dist --signing-key ./nitropush-signing.pem`
+   - 🧑 **ASK** for the bundle path / app version if not obvious.
 3. Confirm the success path with them: first launch → `notifyAppReady()` fires →
-   later `sync()` pulls the new bundle.
+   later `sync()` pulls the new bundle → SDK verifies signature (if signing
+   enabled) → installs.
 
 ## Things to NOT do
 
-- **Don't skip Step 0.** Never assume Expo vs bare RN from the presence of
-  `app.json` alone — both have one. Ask, every time.
+- **Don't skip Step 0a.** Always check you're in an app directory, not the NitroPush library — look for `nitro.json` / `.podspec` as the red flags.
+- **Don't ask Expo vs bare RN when the answer is obvious** — infer it from `package.json` deps and `app.json`, state the inference, and continue. Only ask when genuinely ambiguous.
+- **Don't skip Step 1.** Never assume the user needs to create a project — they
+  may already have one. Ask before running any `nitropush app create` or
+  `nitropush env create` command.
+- **Don't skip Step 2.** Signing is opt-in but must be offered every time. It is
+  much harder to add after the first release (all existing users must update their
+  native binary to pick up the new public key). Offer it now.
 - **Don't claim you logged the user in or built their app.** Those are ✋ NUDGE
   steps (browser OAuth, native build) — surface the command and pause.
-- **Don't invent or guess a `deploymentKey`/env key.** Use a labelled
-  placeholder and make the user paste the real one.
+- **Don't invent or guess a `deploymentKey`/env key.** Use a labelled placeholder
+  and make the user paste the real one.
+- **Don't commit the signing PEM.** Enforce `.gitignore` for `nitropush-signing.pem`
+  before or immediately after generating it.
 - **Don't duplicate native/JS detail here.** This skill sequences; the
   `nitropush-rn-native` / `nitropush-rn-js` / `nitropush-cli` skills own the
   specifics. Read them at the relevant step instead of guessing.
@@ -754,27 +853,121 @@ If you're tempted to fire analytics from JS to "just be sure" — don't. You'll 
 
 ## Expo config plugin (auto-wires everything above)
 
-Source: [packages/nitro-sdk/src/plugin/index.ts](../../packages/nitro-sdk/src/plugin/index.ts) (compiled to `plugin/build/index.js`).
+Source: [packages/react-native/src/plugin/index.ts](../../packages/react-native/src/plugin/index.ts) (compiled to `plugin/build/index.js`).
 
-Add to `app.json`:
+Rebuild after editing: `yarn workspace @nitropush/react-native build:plugin`.
+
+### Plugin props
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `deploymentKey` | `string` | **Yes** | Environment deployment key. Injected as `NITROPUSH_DEPLOYMENT_KEY` in Info.plist / AndroidManifest `<meta-data>`. |
+| `serverUrl` | `string` | No | NitroPush API base URL. Injected as `NITROPUSH_SERVER_URL`; defaults in SDK to `https://api.nitropush.org`. |
+| `storageBaseUrl` | `string` | No | Bundle CDN base URL. Injected as `NITROPUSH_STORAGE_BASE_URL`; defaults to `https://cdn.nitropush.org`. |
+| `bundlePublicKey` | `string` | No | Base64 DER SPKI public key for bundle signature verification. Injected as `NITROPUSH_BUNDLE_PUBLIC_KEY`. Only needed when releases are uploaded with `--signing-key`. |
+| `nativeConfigure` | `boolean` | No | Inject a native `configure()` + background update-check `Task.detached` into `AppDelegate.swift`. **Leave `false` (default) for Expo apps** — JS calls the no-arg `configure()` which reads from Info.plist. Set `true` only for bare-RN apps that need the SDK running before JS loads. |
+| `ios` | `boolean` | No | Enable iOS wiring. Default `true`. |
+| `android` | `boolean` | No | Enable Android wiring. Default `true`. |
+
+Minimal `app.json` entry (enough for the no-arg `configure()` call to work):
 ```json
-"plugins": [["@nitropush/react-native", { "ios": true, "android": true }]]
+"plugins": [[
+  "@nitropush/react-native",
+  {
+    "deploymentKey": "nl_live_…",
+    "serverUrl": "https://api.nitropush.org"
+  }
+]]
 ```
 
-`expo prebuild` then injects:
+### What prebuild injects
 
-**iOS — `AppDelegate.swift`:**
+**iOS — `Info.plist`** (`withInfoPlist`):
+- `NITROPUSH_DEPLOYMENT_KEY` (always when prop is set)
+- `NITROPUSH_SERVER_URL` (when `serverUrl` prop is set)
+- `NITROPUSH_STORAGE_BASE_URL` (when `storageBaseUrl` prop is set)
+- `NITROPUSH_BUNDLE_PUBLIC_KEY` (when `bundlePublicKey` prop is set)
+
+**iOS — `AppDelegate.swift`** (`withAppDelegate`):
 - Tag `nitropush-ios-import`: `import NitroPushSDK`
-- Tag `nitropush-ios-bundle-url`: prepends `if let nitropushBundleURL = NitroPushSdk.shared.activeBundleURL() { return nitropushBundleURL }` inside `bundleURL()` under `#if !DEBUG`.
+- Tag `nitropush-ios-bundle-url`: `activeBundleURL()` short-circuit inside `bundleURL()` under `#if !DEBUG`
+- Tag `nitropush-ios-notify-app-ready`: `applicationDidBecomeActive` override calling `notifyAppReady()`
+- Tag `nitropush-ios-configure`: native `configure()` + background update-check `Task.detached` — **only when `nativeConfigure: true` AND both `serverUrl` and `deploymentKey` props are set** (bare-RN only; Expo apps use JS-side `configure()` instead)
 
-**Android — `MainApplication.kt`:**
+**iOS — `Podfile`** (`withDangerousMod`):
+- Tag `nitropush-ios-podfile-nitromodules-cxx`: sets `CLANG_CXX_LANGUAGE_STANDARD=c++20`, `SWIFT_OBJC_INTEROP_MODE=objcxx`, `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES` on NitroModules + NitroPush pod targets; sets `SWIFT_OBJC_INTEROP_MODE=objcxx` on the main app target via `aggregate_targets`; patches `NitroModules-umbrella.h` to guard `.hpp` imports in `#ifdef __cplusplus`
+- Tag `nitropush-ios-podfile-umbrella-patch`: patches `NitroPushNative-umbrella.h` to guard `.hpp` imports in `#ifdef __cplusplus`
+
+**Android — `AndroidManifest.xml`** (`withAndroidManifest`):
+- `<meta-data android:name="NITROPUSH_DEPLOYMENT_KEY" android:value="…" />`
+- `<meta-data android:name="NITROPUSH_SERVER_URL" android:value="…" />` (when prop is set)
+- `<meta-data android:name="NITROPUSH_STORAGE_BASE_URL" android:value="…" />` (when prop is set)
+- `<meta-data android:name="NITROPUSH_BUNDLE_PUBLIC_KEY" android:value="…" />` (when prop is set)
+
+**Android — `MainApplication.kt`** (`withMainApplication`):
 - Tag `nitropush-android-import`: `import com.nitropush.nitrosdk.NitroPushSdk`
 - Tag `nitropush-android-install`: `NitroPushSdk.install(this)` after `super.onCreate()`
 - Tag `nitropush-android-bundle-file`: `getJSBundleFile()` override under `!BuildConfig.DEBUG`
 
-All injections wrapped in `// @generated begin <tag> ... // @generated end` markers via `mergeContents()` — **idempotent**. Re-running `expo prebuild` is safe and produces no diff if the SDK version hasn't changed.
+All injections wrapped in `// @generated begin <tag> … // @generated end` markers via `mergeContents()` — **idempotent**. Re-running `expo prebuild` is safe and produces no diff if the SDK version hasn't changed.
 
-Rebuild plugin after editing: `yarn workspace @nitropush/react-native build:plugin`.
+## Native configure() — Swift type name and defaults
+
+When `nativeConfigure: true` is set, the config plugin injects `NPConfig(…)` into `AppDelegate.swift`. The correct Swift type is **`NPConfig`**, not `NlConfig` or `NitroPushConfig`. Using the wrong name gives `cannot find 'NlConfig' in scope` at build time.
+
+`deploymentKey` is the only required argument — `serverUrl` defaults to `"https://api.nitropush.org"` and `storageBaseUrl` defaults to `"https://cdn.nitropush.org"`:
+
+```swift
+try NitroPushSdk.shared.configure(NPConfig(deploymentKey: "nl_live_…"))
+```
+
+Only pass the URL args for self-hosted deployments. The Android equivalent type is `NPConfig` (same defaults — `NlConfig` was the old NitroLift-era name, now removed).
+
+## iOS simulator — DNS cache & ATS gotchas
+
+**Stale NXDOMAIN in simulator**: After adding a new DNS record (e.g. pointing `api.nitropush.org` or `cdn.nitropush.org` at a new IP), iOS simulators cache the old NXDOMAIN and keep returning `NSURLErrorDomain Code=-1003 (cannot find host)`. Fix: erase the simulator to flush its DNS cache:
+```bash
+xcrun simctl erase <simulator-udid>   # or "all" for all simulators
+```
+
+**ATS and bare IP addresses**: `NSAllowsLocalNetworking: true` in `Info.plist` only exempts `localhost` and `*.local` hostnames — it does **not** exempt bare IP addresses like `192.168.0.141`. To allow plain-HTTP to a local dev server by IP you must set `NSAllowsArbitraryLoads: true`. In Expo apps add this to `app.json`:
+```json
+"ios": {
+  "infoPlist": {
+    "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+  }
+}
+```
+For production, remove `NSAllowsArbitraryLoads` entirely and use HTTPS.
+
+## Xcode 26 — C++ interop chain detail
+
+The `SWIFT_OBJC_INTEROP_MODE = objcxx` flag must propagate through the **entire** dependency chain, not just the pod targets. Missing it on the main app target causes:
+
+```
+module 'NitroPush' was built with C++ interoperability enabled,
+but current compilation does not enable C++ interoperability
+```
+
+The Podfile `post_install` hook sets it on the **main app target** via `installer.aggregate_targets` (the `user_project`, not `pods_project`):
+
+```ruby
+installer.aggregate_targets.each do |agg|
+  agg.user_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['SWIFT_OBJC_INTEROP_MODE'] = 'objcxx'
+    end
+  end
+  agg.user_project.save   # must call save or the .xcodeproj is not written
+end
+```
+
+Three-level fix required:
+1. `NitroModules` pod: `CLANG_CXX_LANGUAGE_STANDARD=c++20`, `SWIFT_OBJC_INTEROP_MODE=objcxx`, `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES`
+2. `NitroPush` pod: same three settings
+3. Main app target: `SWIFT_OBJC_INTEROP_MODE=objcxx` via `installer.aggregate_targets`
+
+The config plugin applies all three automatically — this is only relevant when hand-editing the Podfile in a bare RN app.
 
 ## Bare RN vs Expo summary
 
@@ -795,3 +988,5 @@ Rebuild plugin after editing: `yarn workspace @nitropush/react-native build:plug
 - **Don't return the OTA bundle in DEBUG.** Always guard with `#if DEBUG` (iOS) / `BuildConfig.DEBUG` (Android) so dev builds still hit Metro.
 - **Don't touch `nitropush.active`/`nitropush.pending`/`nitropush.previous`/`nitropush.unconfirmed`** in UserDefaults/SharedPreferences from outside the SDK. Use `clearPendingUpdate()` / `clearUpdates()` from JS instead.
 - **Don't call `notifyAppReady()` from native code.** It's exposed as a JS API for a reason — the JS engine being healthy enough to call it is itself the signal. Calling it from native short-circuits the rollback safety net.
+- **Don't use `NlConfig`** in `AppDelegate.swift` — the correct Swift type is `NPConfig`. `NlConfig` was the old NitroLift-era name; using it gives `cannot find 'NlConfig' in scope` at build time.
+- **Don't use `NSAllowsLocalNetworking: true`** expecting it to cover bare IP addresses — it only covers `localhost`/`*.local`. Use `NSAllowsArbitraryLoads: true` for bare IPs (dev only), HTTPS in production.

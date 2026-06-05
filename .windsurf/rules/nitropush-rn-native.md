@@ -147,27 +147,121 @@ If you're tempted to fire analytics from JS to "just be sure" — don't. You'll 
 
 ## Expo config plugin (auto-wires everything above)
 
-Source: [packages/nitro-sdk/src/plugin/index.ts](../../packages/nitro-sdk/src/plugin/index.ts) (compiled to `plugin/build/index.js`).
+Source: [packages/react-native/src/plugin/index.ts](../../packages/react-native/src/plugin/index.ts) (compiled to `plugin/build/index.js`).
 
-Add to `app.json`:
+Rebuild after editing: `yarn workspace @nitropush/react-native build:plugin`.
+
+### Plugin props
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `deploymentKey` | `string` | **Yes** | Environment deployment key. Injected as `NITROPUSH_DEPLOYMENT_KEY` in Info.plist / AndroidManifest `<meta-data>`. |
+| `serverUrl` | `string` | No | NitroPush API base URL. Injected as `NITROPUSH_SERVER_URL`; defaults in SDK to `https://api.nitropush.org`. |
+| `storageBaseUrl` | `string` | No | Bundle CDN base URL. Injected as `NITROPUSH_STORAGE_BASE_URL`; defaults to `https://cdn.nitropush.org`. |
+| `bundlePublicKey` | `string` | No | Base64 DER SPKI public key for bundle signature verification. Injected as `NITROPUSH_BUNDLE_PUBLIC_KEY`. Only needed when releases are uploaded with `--signing-key`. |
+| `nativeConfigure` | `boolean` | No | Inject a native `configure()` + background update-check `Task.detached` into `AppDelegate.swift`. **Leave `false` (default) for Expo apps** — JS calls the no-arg `configure()` which reads from Info.plist. Set `true` only for bare-RN apps that need the SDK running before JS loads. |
+| `ios` | `boolean` | No | Enable iOS wiring. Default `true`. |
+| `android` | `boolean` | No | Enable Android wiring. Default `true`. |
+
+Minimal `app.json` entry (enough for the no-arg `configure()` call to work):
 ```json
-"plugins": [["@nitropush/react-native", { "ios": true, "android": true }]]
+"plugins": [[
+  "@nitropush/react-native",
+  {
+    "deploymentKey": "nl_live_…",
+    "serverUrl": "https://api.nitropush.org"
+  }
+]]
 ```
 
-`expo prebuild` then injects:
+### What prebuild injects
 
-**iOS — `AppDelegate.swift`:**
+**iOS — `Info.plist`** (`withInfoPlist`):
+- `NITROPUSH_DEPLOYMENT_KEY` (always when prop is set)
+- `NITROPUSH_SERVER_URL` (when `serverUrl` prop is set)
+- `NITROPUSH_STORAGE_BASE_URL` (when `storageBaseUrl` prop is set)
+- `NITROPUSH_BUNDLE_PUBLIC_KEY` (when `bundlePublicKey` prop is set)
+
+**iOS — `AppDelegate.swift`** (`withAppDelegate`):
 - Tag `nitropush-ios-import`: `import NitroPushSDK`
-- Tag `nitropush-ios-bundle-url`: prepends `if let nitropushBundleURL = NitroPushSdk.shared.activeBundleURL() { return nitropushBundleURL }` inside `bundleURL()` under `#if !DEBUG`.
+- Tag `nitropush-ios-bundle-url`: `activeBundleURL()` short-circuit inside `bundleURL()` under `#if !DEBUG`
+- Tag `nitropush-ios-notify-app-ready`: `applicationDidBecomeActive` override calling `notifyAppReady()`
+- Tag `nitropush-ios-configure`: native `configure()` + background update-check `Task.detached` — **only when `nativeConfigure: true` AND both `serverUrl` and `deploymentKey` props are set** (bare-RN only; Expo apps use JS-side `configure()` instead)
 
-**Android — `MainApplication.kt`:**
+**iOS — `Podfile`** (`withDangerousMod`):
+- Tag `nitropush-ios-podfile-nitromodules-cxx`: sets `CLANG_CXX_LANGUAGE_STANDARD=c++20`, `SWIFT_OBJC_INTEROP_MODE=objcxx`, `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES` on NitroModules + NitroPush pod targets; sets `SWIFT_OBJC_INTEROP_MODE=objcxx` on the main app target via `aggregate_targets`; patches `NitroModules-umbrella.h` to guard `.hpp` imports in `#ifdef __cplusplus`
+- Tag `nitropush-ios-podfile-umbrella-patch`: patches `NitroPushNative-umbrella.h` to guard `.hpp` imports in `#ifdef __cplusplus`
+
+**Android — `AndroidManifest.xml`** (`withAndroidManifest`):
+- `<meta-data android:name="NITROPUSH_DEPLOYMENT_KEY" android:value="…" />`
+- `<meta-data android:name="NITROPUSH_SERVER_URL" android:value="…" />` (when prop is set)
+- `<meta-data android:name="NITROPUSH_STORAGE_BASE_URL" android:value="…" />` (when prop is set)
+- `<meta-data android:name="NITROPUSH_BUNDLE_PUBLIC_KEY" android:value="…" />` (when prop is set)
+
+**Android — `MainApplication.kt`** (`withMainApplication`):
 - Tag `nitropush-android-import`: `import com.nitropush.nitrosdk.NitroPushSdk`
 - Tag `nitropush-android-install`: `NitroPushSdk.install(this)` after `super.onCreate()`
 - Tag `nitropush-android-bundle-file`: `getJSBundleFile()` override under `!BuildConfig.DEBUG`
 
-All injections wrapped in `// @generated begin <tag> ... // @generated end` markers via `mergeContents()` — **idempotent**. Re-running `expo prebuild` is safe and produces no diff if the SDK version hasn't changed.
+All injections wrapped in `// @generated begin <tag> … // @generated end` markers via `mergeContents()` — **idempotent**. Re-running `expo prebuild` is safe and produces no diff if the SDK version hasn't changed.
 
-Rebuild plugin after editing: `yarn workspace @nitropush/react-native build:plugin`.
+## Native configure() — Swift type name and defaults
+
+When `nativeConfigure: true` is set, the config plugin injects `NPConfig(…)` into `AppDelegate.swift`. The correct Swift type is **`NPConfig`**, not `NlConfig` or `NitroPushConfig`. Using the wrong name gives `cannot find 'NlConfig' in scope` at build time.
+
+`deploymentKey` is the only required argument — `serverUrl` defaults to `"https://api.nitropush.org"` and `storageBaseUrl` defaults to `"https://cdn.nitropush.org"`:
+
+```swift
+try NitroPushSdk.shared.configure(NPConfig(deploymentKey: "nl_live_…"))
+```
+
+Only pass the URL args for self-hosted deployments. The Android equivalent type is `NPConfig` (same defaults — `NlConfig` was the old NitroLift-era name, now removed).
+
+## iOS simulator — DNS cache & ATS gotchas
+
+**Stale NXDOMAIN in simulator**: After adding a new DNS record (e.g. pointing `api.nitropush.org` or `cdn.nitropush.org` at a new IP), iOS simulators cache the old NXDOMAIN and keep returning `NSURLErrorDomain Code=-1003 (cannot find host)`. Fix: erase the simulator to flush its DNS cache:
+```bash
+xcrun simctl erase <simulator-udid>   # or "all" for all simulators
+```
+
+**ATS and bare IP addresses**: `NSAllowsLocalNetworking: true` in `Info.plist` only exempts `localhost` and `*.local` hostnames — it does **not** exempt bare IP addresses like `192.168.0.141`. To allow plain-HTTP to a local dev server by IP you must set `NSAllowsArbitraryLoads: true`. In Expo apps add this to `app.json`:
+```json
+"ios": {
+  "infoPlist": {
+    "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+  }
+}
+```
+For production, remove `NSAllowsArbitraryLoads` entirely and use HTTPS.
+
+## Xcode 26 — C++ interop chain detail
+
+The `SWIFT_OBJC_INTEROP_MODE = objcxx` flag must propagate through the **entire** dependency chain, not just the pod targets. Missing it on the main app target causes:
+
+```
+module 'NitroPush' was built with C++ interoperability enabled,
+but current compilation does not enable C++ interoperability
+```
+
+The Podfile `post_install` hook sets it on the **main app target** via `installer.aggregate_targets` (the `user_project`, not `pods_project`):
+
+```ruby
+installer.aggregate_targets.each do |agg|
+  agg.user_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['SWIFT_OBJC_INTEROP_MODE'] = 'objcxx'
+    end
+  end
+  agg.user_project.save   # must call save or the .xcodeproj is not written
+end
+```
+
+Three-level fix required:
+1. `NitroModules` pod: `CLANG_CXX_LANGUAGE_STANDARD=c++20`, `SWIFT_OBJC_INTEROP_MODE=objcxx`, `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES`
+2. `NitroPush` pod: same three settings
+3. Main app target: `SWIFT_OBJC_INTEROP_MODE=objcxx` via `installer.aggregate_targets`
+
+The config plugin applies all three automatically — this is only relevant when hand-editing the Podfile in a bare RN app.
 
 ## Bare RN vs Expo summary
 
@@ -188,3 +282,5 @@ Rebuild plugin after editing: `yarn workspace @nitropush/react-native build:plug
 - **Don't return the OTA bundle in DEBUG.** Always guard with `#if DEBUG` (iOS) / `BuildConfig.DEBUG` (Android) so dev builds still hit Metro.
 - **Don't touch `nitropush.active`/`nitropush.pending`/`nitropush.previous`/`nitropush.unconfirmed`** in UserDefaults/SharedPreferences from outside the SDK. Use `clearPendingUpdate()` / `clearUpdates()` from JS instead.
 - **Don't call `notifyAppReady()` from native code.** It's exposed as a JS API for a reason — the JS engine being healthy enough to call it is itself the signal. Calling it from native short-circuits the rollback safety net.
+- **Don't use `NlConfig`** in `AppDelegate.swift` — the correct Swift type is `NPConfig`. `NlConfig` was the old NitroLift-era name; using it gives `cannot find 'NlConfig' in scope` at build time.
+- **Don't use `NSAllowsLocalNetworking: true`** expecting it to cover bare IP addresses — it only covers `localhost`/`*.local`. Use `NSAllowsArbitraryLoads: true` for bare IPs (dev only), HTTPS in production.
