@@ -9,10 +9,10 @@ AI-agent rule files for NitroPush SDK integration. Installs context-aware guidan
 ### Interactive (recommended)
 
 ```bash
-npx @nitropush/agent-skill
+npx nitropush-agent init
 ```
 
-This runs `nitropush-agent` — an interactive CLI that asks which skills and AI tools to install, then writes the right files for your setup.
+An interactive CLI that asks which skills and AI tools to install, then writes the right files for your setup.
 
 ### Silent sync (all tools, all skills)
 
