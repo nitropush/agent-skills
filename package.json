@@ -1,44 +1,52 @@
 {
-  "name": "@nitropush/agent-skills",
-  "version": "1.0.0-beta.4",
-  "description": "Shared AI-agent rule files for NitroPush repos — render into Claude Code, Cursor, Windsurf, GitHub Copilot, Cline, and AGENTS.md formats",
+  "name": "@nitropush/agent-skill",
+  "version": "1.0.0-beta.1",
+  "description": "NitroPush AI coding agent skills — interactive installer + sync tool for Claude Code, Cursor, Windsurf, Copilot, Cline, Aider, and more",
   "type": "module",
   "main": "scripts/sync.mjs",
   "bin": {
-    "agent-skills-sync": "scripts/sync.mjs"
+    "agent-skills-sync": "scripts/sync.mjs",
+    "nitropush-agent": "bin/init.mjs"
   },
   "files": [
-    "skills/",
+    "bin/",
     "scripts/",
+    "skills/",
     "templates/",
     "manifest.json",
     "registry.json",
     "README.md"
   ],
   "scripts": {
-    "sync": "node scripts/sync.mjs --target ."
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nitropush/agent-skills.git"
-  },
-  "homepage": "https://github.com/nitropush/agent-skills#readme",
-  "bugs": {
-    "url": "https://github.com/nitropush/agent-skills/issues"
+    "sync": "node scripts/sync.mjs --target .",
+    "release": "release-it --preRelease=beta"
   },
   "keywords": [
+    "nitropush",
     "claude",
     "cursor",
     "windsurf",
     "copilot",
     "cline",
     "ai-agents",
-    "agent-rules",
-    "code-rules"
+    "agent-skills",
+    "ota"
   ],
-  "author": "NitroPush Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitropush/agent-skills.git"
+  },
+  "homepage": "https://docs.nitropush.org",
+  "author": "NitroPush",
   "license": "MIT",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "beta"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "release-it": "^17.10.0"
   }
 }
