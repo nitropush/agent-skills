@@ -1,6 +1,6 @@
 {
-  "name": "@nitropush/agent-skill",
-  "version": "1.0.0-beta.1",
+  "name": "@nitropush/agent-skills",
+  "version": "1.0.0-beta.4",
   "description": "NitroPush AI coding agent skills — interactive installer + sync tool for Claude Code, Cursor, Windsurf, Copilot, Cline, Aider, and more",
   "type": "module",
   "main": "scripts/sync.mjs",
@@ -18,6 +18,7 @@
     "README.md"
   ],
   "scripts": {
+    "test": "node --test test/*.test.mjs",
     "sync": "node scripts/sync.mjs --target .",
     "release": "release-it --preRelease=beta"
   },
@@ -47,6 +48,6 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "release-it": "^17.10.0"
+    "release-it": "^20.2.1"
   }
 }

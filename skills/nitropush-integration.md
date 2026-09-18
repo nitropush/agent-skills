@@ -26,6 +26,16 @@ skill that owns the detail (`nitropush-cli`, `nitropush-rn-native`,
 
 ## Step 0 — Detect project context (NO QUESTIONS if obvious)
 
+### NativeScript routing (before the RN entry-point guard)
+
+Read package.json first. If the user is working on a NativeScript application
+(`@nativescript/core` or `nativescript.config.ts`), use the
+`nitropush-nativescript` skill instead of the RN/Expo steps below. That workflow
+requires signing, a native runtime fingerprint, a complete built app tree, and
+restart-only installation. A NativeScript entry point is not necessarily App.tsx;
+do not misidentify it as the SDK library. If the NativeScript skill is unavailable,
+read the NativeScript SDK README or user guide before proceeding.
+
 ### 0a — Wrong directory guard (check FIRST, before anything else)
 
 Read the directory you are operating in. If you see **any** of these:
@@ -56,8 +66,6 @@ Read `package.json` and `app.json` (if present) before asking anything.
 - If **ambiguous only**: 🧑 **ASK** once. Never ask when the answer is obvious.
 
 Record the result as **PROJECT_KIND**.
-
-## Step 1 — 🧑 ASK: Dashboard project already set up? (MANDATORY GATE)
 
 ## Step 1 — 🧑 ASK: Dashboard project already set up? (MANDATORY GATE)
 
@@ -92,12 +100,14 @@ see the **nitropush-cli** skill for exact flags.
    `nitropush app create --org <orgId> --name "<AppName>"` —
    🧑 **ASK** for the app display name if you can't read it confidently from
    `app.json` / native projects. Capture the returned **App ID**.
-3. 🤖 **AUTO: create environment(s).** `nitropush env create --app <appId> --name prod`
+3. 🤖 **AUTO: create environment(s).** `nitropush env create --app <appId> --name prod --key-out ./nitropush-prod-deployment-key.txt`
    (offer `test`/`stage` too — 🧑 **ASK** which environments they want; default
    to just `prod` if unsure).
-4. ✋ **NUDGE: capture the deployment key.** The `deploymentKey` is printed in the
-   `env create` output. Have the user copy it now — it is not recoverable from the
-   CLI later. Do **not** hardcode a guessed key.
+4. ✋ **NUDGE: secure the deployment key.** The CLI writes the one-time
+   `deploymentKey` to the requested new `0600` file; NitroPush stores only its
+   hash and cannot show it again. Have the user move the value into their native
+   secret/config workflow, then delete the local file when appropriate. Do **not**
+   hardcode a guessed key.
 
 Resource order is strict: **Org → App → Environment**. Create top-down.
 
